@@ -13,10 +13,12 @@
     "move_to_end": "b"
   },
   "tts_controls": {
-    "play_pause": "p",
-    "decrease_speed": ",",
-    "increase_speed": ".",
-    "toggle_sentence_highlight": "s",
+    "play_pause": " ",
+    "decrease_speed": "s",
+    "increase_speed": "d",
+    "decrease_volume": "o",
+    "increase_volume": "p",
+    "toggle_sentence_highlight": "x",
     "toggle_word_highlight": "w"
   },
   "display_controls": {
@@ -26,6 +28,7 @@
   "application": {
     "quit": "q",
     "toggle_recent_menu": "r",
+    "toggle_voice_menu": "e",
     "select_menu_item": "\n"
   }
 }

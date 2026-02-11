@@ -42,6 +42,11 @@ class Lue:
         self.audio_restart_lock = asyncio.Lock()
         self.pending_restart_task = None
         self.playback_speed = 1.0  # Default speed multiplier
+        self.playback_volume = config.DEFAULT_VOLUME
+
+        # Windows-only helpers
+        self._resize_poll_task = None
+        self._last_term_size = ui.get_terminal_size()
         
         # Add pause toggle lock and task tracking
         self.pause_toggle_lock = asyncio.Lock()
@@ -51,6 +56,12 @@ class Lue:
         self.show_recent_menu = False
         self.recent_books_list = []
         self.recent_menu_selection_idx = 0
+
+        # Voice menu state
+        self.show_voice_menu = False
+        self.voice_menu_list = []
+        self.voice_menu_selection_idx = 0
+        self.voice_menu_scroll_offset = 0
 
     def _initialize_tts(self, tts_model):
         """Initialize TTS-related state."""
@@ -110,9 +121,101 @@ class Lue:
         self.first_sentence_jump = False
         self.recent_books_list = []
         self.show_recent_menu = False
+        self.voice_menu_list = []
+        self.show_voice_menu = False
+        self.voice_menu_selection_idx = 0
+        self.voice_menu_scroll_offset = 0
         
         # Force UI update
         asyncio.create_task(ui.display_ui(self))
+
+    def _get_voice_menu_visible_rows(self):
+        """Calculate the number of rows available for the voice menu list."""
+        _, height = ui.get_terminal_size()
+        # Account for panel borders/title/padding
+        return max(1, height - 6)
+
+    def _ensure_voice_menu_selection_visible(self):
+        """Ensure the selected voice stays within the visible menu window."""
+        if not self.voice_menu_list:
+            self.voice_menu_scroll_offset = 0
+            return
+
+        visible_rows = self._get_voice_menu_visible_rows()
+        max_offset = max(0, len(self.voice_menu_list) - visible_rows)
+        if self.voice_menu_selection_idx < self.voice_menu_scroll_offset:
+            self.voice_menu_scroll_offset = self.voice_menu_selection_idx
+        elif self.voice_menu_selection_idx >= self.voice_menu_scroll_offset + visible_rows:
+            self.voice_menu_scroll_offset = self.voice_menu_selection_idx - visible_rows + 1
+
+        self.voice_menu_scroll_offset = max(0, min(self.voice_menu_scroll_offset, max_offset))
+
+    def _load_voice_menu_list(self):
+        """Load the voice menu list based on the current TTS model."""
+        self.voice_menu_list = []
+        self.voice_menu_selection_idx = 0
+        self.voice_menu_scroll_offset = 0
+
+        if not self.tts_model:
+            return
+
+        voices = []
+        seen = set()
+        model_name = self.tts_model.name
+        voices_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "VOICES.md")
+
+        try:
+            with open(voices_path, "r", encoding="utf-8") as f:
+                in_section = None
+                for raw_line in f:
+                    line = raw_line.strip()
+                    if line.startswith("### Edge Voices"):
+                        in_section = "edge"
+                        continue
+                    if line.startswith("### Kokoro Voices"):
+                        in_section = "kokoro"
+                        continue
+
+                    if in_section != model_name:
+                        continue
+
+                    if not line.startswith("*"):
+                        continue
+
+                    match = re.match(r"^\*\s+(.+?)(?:\s+\(|$)", line)
+                    if not match:
+                        continue
+
+                    voice_id = match.group(1).strip().strip("*")
+                    if model_name == "edge" and "Neural" not in voice_id:
+                        continue
+                    if model_name == "kokoro" and "_" not in voice_id:
+                        continue
+
+                    if voice_id not in seen:
+                        seen.add(voice_id)
+                        voices.append(voice_id)
+        except (OSError, IOError):
+            voices = []
+
+        # Filter Kokoro voices to the current language code to avoid re-init
+        if model_name == "kokoro" and getattr(self.tts_model, "lang", None):
+            lang_code = str(self.tts_model.lang)
+            voices = [voice for voice in voices if voice and voice[0] == lang_code]
+
+        # Ensure the current voice is present even if the list is empty or filtered out
+        current_voice = getattr(self.tts_model, "voice", None)
+        if current_voice and current_voice not in voices:
+            voices.insert(0, current_voice)
+
+        self.voice_menu_list = voices
+
+        if current_voice and current_voice in self.voice_menu_list:
+            self.voice_menu_selection_idx = self.voice_menu_list.index(current_voice)
+        else:
+            self.voice_menu_selection_idx = 0
+
+        self._ensure_voice_menu_selection_visible()
         
     def _initialize_progress(self):
         """Initialize reading progress from saved state."""
@@ -131,6 +234,8 @@ class Lue:
         self.auto_scroll_enabled = progress_data["auto_scroll_enabled"]
         self.is_paused = not progress_data["tts_enabled"]
         self.playback_speed = progress_data["playback_speed"]
+        self.playback_volume = progress_data["playback_volume"]
+        self.playback_volume = max(config.MIN_VOLUME, min(config.MAX_VOLUME, int(round(self.playback_volume))))
         if not self.tts_model:
             self.is_paused = True
             
@@ -605,6 +710,24 @@ class Lue:
             return True
         return False
 
+    def _increase_volume(self):
+        """Increase playback volume."""
+        new_volume = min(config.MAX_VOLUME, self.playback_volume + config.VOLUME_STEP)
+        if new_volume != self.playback_volume:
+            self.playback_volume = int(new_volume)
+            self._save_extended_progress()
+            return True
+        return False
+
+    def _decrease_volume(self):
+        """Decrease playback volume."""
+        new_volume = max(config.MIN_VOLUME, self.playback_volume - config.VOLUME_STEP)
+        if new_volume != self.playback_volume:
+            self.playback_volume = int(new_volume)
+            self._save_extended_progress()
+            return True
+        return False
+
     def _get_speed_display(self):
         """Get the speed display string for UI using superscript characters with middle dot and fixed decimal places."""
         if abs(self.playback_speed - 1.0) < 0.01:
@@ -631,6 +754,12 @@ class Lue:
         
         # Return the speed indicator without leading space
         return f"ˣ{superscript_str}"
+
+    def _get_volume_display(self):
+        """Get the volume display string for UI."""
+        if self.playback_volume == config.DEFAULT_VOLUME:
+            return ""
+        return f"V{int(self.playback_volume)}"
 
     def _advance_position(self, current_pos, mode='sentence', wrap=True):
         c, p, s = current_pos
@@ -745,6 +874,7 @@ class Lue:
             manual_scroll_anchor=manual_scroll_anchor,
             original_file_path=self.file_path,
             playback_speed=self.playback_speed,
+            playback_volume=self.playback_volume,
             percentage=self._calculate_ui_progress_percentage()
         )
 
@@ -761,7 +891,7 @@ class Lue:
         self.scroll_offset = self.target_scroll_offset = max(0, self.scroll_offset - 1)
         if self.smooth_scroll_task and not self.smooth_scroll_task.done(): self.smooth_scroll_task.cancel()
         self.chapter_idx, self.paragraph_idx, self.sentence_idx = self.ui_chapter_idx, self.ui_paragraph_idx, self.ui_sentence_idx
-        progress_manager.save_extended_progress(self.progress_file, self.chapter_idx, self.paragraph_idx, self.sentence_idx, self.scroll_offset, not self.is_paused, self.auto_scroll_enabled, original_file_path=self.file_path, playback_speed=self.playback_speed, percentage=self._calculate_ui_progress_percentage())
+        progress_manager.save_extended_progress(self.progress_file, self.chapter_idx, self.paragraph_idx, self.sentence_idx, self.scroll_offset, not self.is_paused, self.auto_scroll_enabled, original_file_path=self.file_path, playback_speed=self.playback_speed, playback_volume=self.playback_volume, percentage=self._calculate_ui_progress_percentage())
 
     def _handle_scroll_up_smooth(self):
         self.auto_scroll_enabled = False
@@ -772,7 +902,7 @@ class Lue:
             self.scroll_offset = self.target_scroll_offset = target_offset
             if self.smooth_scroll_task and not self.smooth_scroll_task.done(): self.smooth_scroll_task.cancel()
         self.chapter_idx, self.paragraph_idx, self.sentence_idx = self.ui_chapter_idx, self.ui_paragraph_idx, self.ui_sentence_idx
-        progress_manager.save_extended_progress(self.progress_file, self.chapter_idx, self.paragraph_idx, self.sentence_idx, self.scroll_offset, not self.is_paused, self.auto_scroll_enabled, original_file_path=self.file_path, playback_speed=self.playback_speed, percentage=self._calculate_ui_progress_percentage())
+        progress_manager.save_extended_progress(self.progress_file, self.chapter_idx, self.paragraph_idx, self.sentence_idx, self.scroll_offset, not self.is_paused, self.auto_scroll_enabled, original_file_path=self.file_path, playback_speed=self.playback_speed, playback_volume=self.playback_volume, percentage=self._calculate_ui_progress_percentage())
 
     def _handle_scroll_down_immediate(self):
         self.auto_scroll_enabled = False
@@ -780,7 +910,7 @@ class Lue:
         self.scroll_offset = self.target_scroll_offset = min(max_scroll, self.scroll_offset + 1)
         if self.smooth_scroll_task and not self.smooth_scroll_task.done(): self.smooth_scroll_task.cancel()
         self.chapter_idx, self.paragraph_idx, self.sentence_idx = self.ui_chapter_idx, self.ui_paragraph_idx, self.ui_sentence_idx
-        progress_manager.save_extended_progress(self.progress_file, self.chapter_idx, self.paragraph_idx, self.sentence_idx, self.scroll_offset, not self.is_paused, self.auto_scroll_enabled, original_file_path=self.file_path, playback_speed=self.playback_speed, percentage=self._calculate_ui_progress_percentage())
+        progress_manager.save_extended_progress(self.progress_file, self.chapter_idx, self.paragraph_idx, self.sentence_idx, self.scroll_offset, not self.is_paused, self.auto_scroll_enabled, original_file_path=self.file_path, playback_speed=self.playback_speed, playback_volume=self.playback_volume, percentage=self._calculate_ui_progress_percentage())
 
     def _handle_scroll_down_smooth(self):
         self.auto_scroll_enabled = False
@@ -792,7 +922,7 @@ class Lue:
             self.scroll_offset = self.target_scroll_offset = target_offset
             if self.smooth_scroll_task and not self.smooth_scroll_task.done(): self.smooth_scroll_task.cancel()
         self.chapter_idx, self.paragraph_idx, self.sentence_idx = self.ui_chapter_idx, self.ui_paragraph_idx, self.ui_sentence_idx
-        progress_manager.save_extended_progress(self.progress_file, self.chapter_idx, self.paragraph_idx, self.sentence_idx, self.scroll_offset, not self.is_paused, self.auto_scroll_enabled, original_file_path=self.file_path, playback_speed=self.playback_speed, percentage=self._calculate_ui_progress_percentage())
+        progress_manager.save_extended_progress(self.progress_file, self.chapter_idx, self.paragraph_idx, self.sentence_idx, self.scroll_offset, not self.is_paused, self.auto_scroll_enabled, original_file_path=self.file_path, playback_speed=self.playback_speed, playback_volume=self.playback_volume, percentage=self._calculate_ui_progress_percentage())
 
     def _handle_navigation_immediate(self, cmd):
         current_pos = (self.chapter_idx, self.paragraph_idx, self.sentence_idx)
@@ -977,6 +1107,19 @@ class Lue:
             self.resize_scheduled = True
             self.loop.call_soon_threadsafe(self._post_command_sync, '_resize')
 
+    async def _windows_resize_loop(self):
+        """Poll terminal size on Windows (no SIGWINCH)."""
+        try:
+            self._last_term_size = ui.get_terminal_size()
+            while self.running:
+                await asyncio.sleep(0.5)
+                size = ui.get_terminal_size()
+                if size != self._last_term_size:
+                    self._last_term_size = size
+                    self._handle_resize(None, None)
+        except Exception:
+            pass
+
     async def _ui_update_loop(self):
         last_update_time, last_sentence_pos, last_progress_save_time = 0, None, asyncio.get_event_loop().time()
         progress_save_interval = 5.0
@@ -995,6 +1138,18 @@ class Lue:
                             self.last_auto_scroll_position = target_pos
                             self._scroll_to_position(*target_pos)
                         last_sentence_pos = target_pos
+                    elif self.auto_scroll_enabled and target_pos in self.position_to_line:
+                        # Re-center if scroll offset drifted without a sentence change (e.g. resize)
+                        target_line = self.position_to_line[target_pos]
+                        _, height = ui.get_terminal_size()
+                        available_height = max(1, height - 4)
+                        max_scroll = max(0, len(self.document_lines) - available_height)
+                        desired_offset = max(0, min(target_line - available_height // 2, max_scroll))
+                        if abs(self.scroll_offset - desired_offset) > 1.0:
+                            if self.first_sentence_jump:
+                                self.first_sentence_jump = False
+                            self.last_auto_scroll_position = target_pos
+                            self._scroll_to_position(*target_pos)
                 if (current_time - last_progress_save_time) >= progress_save_interval:
                     self._save_extended_progress()
                     last_progress_save_time = current_time
@@ -1165,15 +1320,22 @@ class Lue:
 
     async def run(self):
         self.loop = asyncio.get_running_loop()
-        self.loop.add_reader(sys.stdin.fileno(), input_handler.process_input, self)
+        if os.name == "nt":
+            self._input_thread = input_handler.start_windows_input_thread(self)
+        else:
+            self.loop.add_reader(sys.stdin.fileno(), input_handler.process_input, self)
         
         # Enable mouse reporting for drag events (button motion only)
         sys.stdout.write('\033[?1002h')  # Enable button motion events (drag only)
         sys.stdout.flush()
         
-        signal.signal(signal.SIGWINCH, self._handle_resize)
+        if os.name != "nt":
+            signal.signal(signal.SIGWINCH, self._handle_resize)
         signal.signal(signal.SIGINT, self._handle_exit_signal)
         signal.signal(signal.SIGTERM, self._handle_exit_signal)
+
+        if os.name == "nt":
+            self._resize_poll_task = asyncio.create_task(self._windows_resize_loop())
         
         if not self.chapters or not self.chapters[0]: return
             
@@ -1192,8 +1354,22 @@ class Lue:
             if cmd == 'toggle_recent_menu':
                 self.show_recent_menu = not self.show_recent_menu
                 if self.show_recent_menu:
+                    self.show_voice_menu = False
                     self.recent_books_list = progress_manager.get_recent_books()
                     self.recent_menu_selection_idx = 0
+                    # Pause TTS when menu opens
+                    if not self.is_paused:
+                        self.is_paused = True
+                        self._save_extended_progress()
+                        await audio.stop_and_clear_audio(self)
+                # Force UI update
+                asyncio.create_task(ui.display_ui(self))
+                continue
+            if cmd == 'toggle_voice_menu':
+                self.show_voice_menu = not self.show_voice_menu
+                if self.show_voice_menu:
+                    self.show_recent_menu = False
+                    self._load_voice_menu_list()
                     # Pause TTS when menu opens
                     if not self.is_paused:
                         self.is_paused = True
@@ -1225,6 +1401,46 @@ class Lue:
                         book_data = self.recent_books_list[self.recent_menu_selection_idx]
                         path = book_data['path']
                         await self._switch_book(path)
+                    continue
+                elif cmd == 'quit':
+                     # Allow quit even if menu is open
+                     pass
+                elif cmd == '_resize':
+                     # Allow resize to fall through to the main resize handler
+                     pass
+                else:
+                    # Ignore other commands while menu is open
+                    continue
+
+            if self.show_voice_menu:
+                if cmd in ['prev_sentence', 'prev_paragraph', 'scroll_up', 'scroll_page_up', 'wheel_scroll_up', 'move_to_beginning']:
+                    if self.voice_menu_list:
+                        if self.voice_menu_selection_idx == 0:
+                            self.voice_menu_selection_idx = len(self.voice_menu_list) - 1
+                        else:
+                            self.voice_menu_selection_idx -= 1
+                        self._ensure_voice_menu_selection_visible()
+                    asyncio.create_task(ui.display_ui(self))
+                    continue
+                elif cmd in ['next_sentence', 'next_paragraph', 'scroll_down', 'scroll_page_down', 'wheel_scroll_down', 'move_to_end']:
+                    if self.voice_menu_list:
+                        if self.voice_menu_selection_idx == len(self.voice_menu_list) - 1:
+                            self.voice_menu_selection_idx = 0
+                        else:
+                            self.voice_menu_selection_idx += 1
+                        self._ensure_voice_menu_selection_visible()
+                    asyncio.create_task(ui.display_ui(self))
+                    continue
+                elif cmd == 'select_menu_item':
+                    if self.tts_model and self.voice_menu_list and 0 <= self.voice_menu_selection_idx < len(self.voice_menu_list):
+                        selected_voice = self.voice_menu_list[self.voice_menu_selection_idx]
+                        self.tts_model.voice = selected_voice
+                        self.tts_voice = selected_voice
+                        self.show_voice_menu = False
+                        asyncio.create_task(ui.display_ui(self))
+                        # Restart audio with new voice if currently playing
+                        if not self.is_paused and self.tts_model:
+                            self.pending_restart_task = asyncio.create_task(self._restart_audio_after_navigation())
                     continue
                 elif cmd == 'quit':
                      # Allow quit even if menu is open
@@ -1301,9 +1517,16 @@ class Lue:
                 
                 # Update the document layout for the new window size
                 ui.update_document_layout(self)
-                
+
+                if self.auto_scroll_enabled:
+                    # Keep the current sentence centered after reflow.
+                    self._scroll_to_position_immediate(
+                        self.ui_chapter_idx,
+                        self.ui_paragraph_idx,
+                        self.ui_sentence_idx
+                    )
                 # If we're not in auto-scroll mode and have a resize anchor, use it
-                if not self.auto_scroll_enabled and self.resize_anchor:
+                elif self.resize_anchor:
                     anchor_pos, fraction_in_view = self.resize_anchor
                     if anchor_pos in self.position_to_line:
                         target_line = self.position_to_line[anchor_pos]
@@ -1311,7 +1534,7 @@ class Lue:
                         new_available_height = max(1, new_height - 4)
                         new_max_scroll = max(0, len(self.document_lines) - new_available_height)
                         new_scroll = target_line - int(round(fraction_in_view * new_available_height))
-                        self.scroll_offset = max(0, target_line - available_height // 2)
+                        self.scroll_offset = max(0, min(new_scroll, new_max_scroll))
                         self.target_scroll_offset = self.scroll_offset
                     else:
                         # Fallback to percentage-based scrolling if anchor is not found
@@ -1391,6 +1614,20 @@ class Lue:
                     # Force immediate UI update to show new speed
                     asyncio.create_task(ui.display_ui(self))
                     # Restart audio with new speed if currently playing
+                    if not self.is_paused and self.tts_model:
+                        self.pending_restart_task = asyncio.create_task(self._restart_audio_after_navigation())
+            elif cmd == 'increase_volume':
+                if self._increase_volume():
+                    # Force immediate UI update to show new volume
+                    asyncio.create_task(ui.display_ui(self))
+                    # Restart audio with new volume if currently playing
+                    if not self.is_paused and self.tts_model:
+                        self.pending_restart_task = asyncio.create_task(self._restart_audio_after_navigation())
+            elif cmd == 'decrease_volume':
+                if self._decrease_volume():
+                    # Force immediate UI update to show new volume
+                    asyncio.create_task(ui.display_ui(self))
+                    # Restart audio with new volume if currently playing
                     if not self.is_paused and self.tts_model:
                         self.pending_restart_task = asyncio.create_task(self._restart_audio_after_navigation())
             elif cmd == 'toggle_sentence_highlight':

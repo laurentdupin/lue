@@ -5,7 +5,7 @@ Welcome to Lue, your terminal-based eBook reader with modular text-to-speech sup
 
 Chapter 2: Reading Controls
 
-Now let’s test sentence-level navigation. Press "j" to return to the previous sentence. Press "k" to jump to the next sentence. If you want to jump to the top visible sentence on the screen, press "t" key. Press "h" to go back to the previous paragraph. Press "l" to move to the next paragraph. You can pause and resume the text-to-speech model with "p", Lue remembers exactly where you were.  
+Now let’s test sentence-level navigation. Press "j" to return to the previous sentence. Press "k" to jump to the next sentence. If you want to jump to the top visible sentence on the screen, press "t" key. Press "h" to go back to the previous paragraph. Press "l" to move to the next paragraph. You can pause and resume the text-to-speech model with the SPACE key, Lue remembers exactly where you were.  
 
 
 Chapter 3: Page and Scroll Controls
@@ -18,14 +18,17 @@ Chapter 4: Mouse Actions
 If your terminal supports mouse input, you can click on any sentence to jump to it instantly. Use the mouse wheel or trackpad to scroll through the text, or click on the progress bar to skip directly to that position in the book.
 
 
-Chapter 5: Speed Adjustment
+Chapter 5: Speed and Volume
 
-Lue allows you to adjust the text-to-speech playback speed to match your listening preference. You can increase the speed up to 3x faster. To increase the playback speed, press the period key. Each press will increase the speed incrementally. To decrease the playback speed, press the comma key. Each press will decrease the speed back down to the normal 1x speed.
+Lue allows you to adjust the text-to-speech playback speed to match your listening preference. You can increase the speed up to 3x faster. To increase the playback speed, press the "d" key. Each press will increase the speed incrementally. To decrease the playback speed, press the "s" key. Each press will decrease the speed back down to the normal 1x speed.
+
+You can also adjust playback volume (up to 200%). Press "p" to increase volume and "o" to decrease it.
+Press "e" to open the voice selection menu while reading.
 
 
 Chapter 6: Highlighting Controls
 
-There are two levels of text highlighting to help you follow along with the narration: sentence-level highlighting and word-level highlighting. To toggle sentence highlighting on or off, press the "s" key. To toggle word highlighting on or off, press the "w" key. You can use both highlighting modes simultaneously, or disable either one based on your preference.
+There are two levels of text highlighting to help you follow along with the narration: sentence-level highlighting and word-level highlighting. To toggle sentence highlighting on or off, press the "x" key. To toggle word highlighting on or off, press the "w" key. You can use both highlighting modes simultaneously, or disable either one based on your preference.
 
 
 Chapter 7: Ending the Session
@@ -34,3 +37,4 @@ When you are ready to stop reading, press "q" to quit. Your place and your readi
 
 
 Enjoy your reading!
+

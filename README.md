@@ -197,7 +197,7 @@ lue --keys vim path/to/your/book.epub
 | **Key Binding**                         | **Action Description**                                                                         |
 | --------------------------------------- | ---------------------------------------------------------------------------------------------- |
 | `q`                                     | Quit the application and save current reading progress automatically                           |
-| `p`                                     | Pause or resume the text-to-speech audio playback                                              |
+| `SPACE`                                 | Pause or resume the text-to-speech audio playback                                              |
 | `a`                                     | Toggle auto-scroll mode to automatically advance during TTS playback                           |
 | `t`                                     | Select and highlight the top sentence of the current visible page                              |
 | `h` / `l`                               | Move the reading line to the previous or next paragraph in the document                        |
@@ -206,8 +206,10 @@ lue --keys vim path/to/your/book.epub
 | `u` / `n`                               | Scroll up or down by smaller increments for fine-grained position control                      |
 | `y` / `b`                               | Jump directly to the beginning or end of the document for quick navigation                     |
 | `r`                                     | Open the recent books menu to quickly switch between 5 last read books                       |
-| `,` / `.`                               | Decrease or increase text-to-speech playback speed (1x to 3x)                                  |
-| `s` / `w`                               | Toggle sentence highlighting or word highlighting on/off                                       |
+| `e`                                     | Open the voice selection menu                                                                   |
+| `s` / `d`                               | Decrease or increase text-to-speech playback speed (1x to 3x)                                  |
+| `o` / `p`                               | Decrease or increase text-to-speech playback volume                                            |
+| `x` / `w`                               | Toggle sentence highlighting or word highlighting on/off                                       |
 | `v`                                     | Cycle through UI complexity modes (Minimal, Medium, Full)                                      |
 
 </div>
@@ -228,7 +230,7 @@ Lue offers three UI complexity modes that you can cycle through using the `v` ke
 - **Mode 1 (Medium)** - Displays a top title bar with progress information and borders
 - **Mode 2 (Full)** - Full UI with both top title bar and bottom control information
 
-Additionally, Lue provides customizable word-level and sentence-level highlighting that can be adjusted to suit your reading preferences. You can cycle through different highlighting modes using the `w` and `s` keys. These highlighting settings can also be configured as defaults in the [config.py](lue/config.py) file.
+Additionally, Lue provides customizable word-level and sentence-level highlighting that can be adjusted to suit your reading preferences. You can cycle through different highlighting modes using the `w` and `x` keys. These highlighting settings can also be configured as defaults in the [config.py](lue/config.py) file.
 
 ### Keyboard Layouts
 

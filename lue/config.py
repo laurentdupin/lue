@@ -28,6 +28,10 @@ os.makedirs(AUDIO_DATA_DIR, exist_ok=True)
 AUDIO_BUFFERS = [os.path.join(AUDIO_DATA_DIR, f"buffer_{i}") for i in range(6)]
 MAX_QUEUE_SIZE = 4
 OVERLAP_SECONDS = 0.5 # Seconds of overlap between sentences
+DEFAULT_VOLUME = 100  # 100 = normal volume
+MIN_VOLUME = 0
+MAX_VOLUME = 200
+VOLUME_STEP = 5
 
 # Progress tracking settings
 PROGRESS_FILE_DIR = user_data_dir("lue")

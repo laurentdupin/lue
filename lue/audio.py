@@ -64,7 +64,16 @@ async def stop_and_clear_audio(reader):
         except (ProcessLookupError, AttributeError, asyncio.TimeoutError): pass
     
     try:
-        pkill_proc = await asyncio.create_subprocess_exec('pkill', '-9', '-f', 'ffplay.*buffer_', stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        if os.name == "nt":
+            pkill_proc = await asyncio.create_subprocess_exec(
+                'taskkill', '/F', '/IM', 'ffplay.exe',
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+            )
+        else:
+            pkill_proc = await asyncio.create_subprocess_exec(
+                'pkill', '-9', '-f', 'ffplay.*buffer_',
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+            )
         await asyncio.wait_for(pkill_proc.wait(), timeout=0.3)
     except (FileNotFoundError, asyncio.TimeoutError): pass
     
@@ -272,28 +281,37 @@ async def _player_loop(reader):
                     reader.audio_queue.task_done()
                     break
                 try:
-                    # Build ffplay command with speed control using atempo filter
+                    # Build ffplay command with optional volume/speed filters
                     cmd = ['ffplay', '-nodisp', '-autoexit', '-loglevel', 'error']
+                    filters = []
+
+                    volume = int(round(reader.playback_volume))
+                    volume = max(config.MIN_VOLUME, min(config.MAX_VOLUME, volume))
+                    volume_multiplier = volume / 100.0
+                    if abs(volume_multiplier - 1.0) > 0.01:
+                        filters.append(f'volume={volume_multiplier:.2f}')
                     
                     # Add atempo filter if speed is not 1.0
                     if abs(reader.playback_speed - 1.0) > 0.01:
                         # atempo filter has limitations: must be between 0.5 and 2.0
                         # For speeds outside this range, we chain multiple atempo filters
                         speed = reader.playback_speed
-                        filters = []
+                        atempo_filters = []
                         
                         while speed > 2.0:
-                            filters.append('atempo=2.0')
+                            atempo_filters.append('atempo=2.0')
                             speed /= 2.0
                         while speed < 0.5:
-                            filters.append('atempo=0.5')
+                            atempo_filters.append('atempo=0.5')
                             speed /= 0.5
                         if abs(speed - 1.0) > 0.01:
-                            filters.append(f'atempo={speed:.3f}')
+                            atempo_filters.append(f'atempo={speed:.3f}')
                         
-                        if filters:
-                            filter_chain = ','.join(filters)
-                            cmd.extend(['-af', filter_chain])
+                        if atempo_filters:
+                            filters.extend(atempo_filters)
+
+                    if filters:
+                        cmd.extend(['-af', ','.join(filters)])
                     
                     cmd.append(audio_file)
                     process = await asyncio.create_subprocess_exec(*cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)

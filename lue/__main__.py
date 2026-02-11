@@ -2,8 +2,14 @@
 
 import asyncio
 import sys
-import termios
-import tty
+try:
+    import termios
+    import tty
+    _HAS_TERMIOS = True
+except Exception:
+    termios = None
+    tty = None
+    _HAS_TERMIOS = False
 import subprocess
 import argparse
 import os
@@ -194,8 +200,8 @@ async def main():
             "-s",
             "--speed",
             type=float,
-            default=1.0,
-            help="Set the speech speed (default: 1.0)",
+            default=None,
+            help="Set the speech speed (defaults to saved speed or 1.0)",
         )
         parser.add_argument(
             "-l",
@@ -297,7 +303,7 @@ async def main():
         tts_instance = tts_manager.create_model(args.tts, console, voice=voice, lang=lang)
 
     reader = Lue(args.file_path, tts_model=tts_instance, overlap=args.over)
-    if hasattr(args, 'speed'):
+    if hasattr(args, 'speed') and args.speed is not None:
         reader.playback_speed = args.speed
         
     # Hide cursor, enable mouse tracking
@@ -305,7 +311,9 @@ async def main():
     sys.stdout.flush()
     
     fd = sys.stdin.fileno()
-    old_settings = termios.tcgetattr(fd)
+    old_settings = None
+    if _HAS_TERMIOS:
+        old_settings = termios.tcgetattr(fd)
     temp_guide_file = None
     
     # Check if we're using a temporary guide file
@@ -313,7 +321,8 @@ async def main():
         temp_guide_file = args.file_path
     
     try:
-        tty.setcbreak(sys.stdin.fileno())
+        if _HAS_TERMIOS:
+            tty.setcbreak(sys.stdin.fileno())
         
         initialized = await reader.initialize_tts()
         if not initialized and hasattr(args, 'tts') and args.tts and args.tts != "none":
@@ -325,7 +334,7 @@ async def main():
     finally:
         sys.stdout.write('\033[?1000l\033[?1006l\033[?25h')
         sys.stdout.flush()
-        if fd is not None and old_settings is not None:
+        if _HAS_TERMIOS and fd is not None and old_settings is not None:
             termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
         
         # Clean up temporary guide file if it was created

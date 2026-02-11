@@ -429,6 +429,9 @@ def get_compact_subtitle(reader, width):
     
     # Add speed indicator if not normal speed
     speed_indicator = reader._get_speed_display() if hasattr(reader, '_get_speed_display') else ""
+    volume_indicator = reader._get_volume_display() if hasattr(reader, '_get_volume_display') else ""
+    indicator_parts = [part for part in (speed_indicator, volume_indicator) if part]
+    audio_indicator = " ".join(indicator_parts)
     
     # Get keyboard shortcuts
     keyboard_shortcuts = get_keyboard_shortcuts()
@@ -447,14 +450,33 @@ def get_compact_subtitle(reader, width):
     scroll_down_key = format_key_for_display(nav_shortcuts.get("scroll_down", "n"))
     page_up_key = format_key_for_display(nav_shortcuts.get("scroll_page_up", "i"))
     page_down_key = format_key_for_display(nav_shortcuts.get("scroll_page_down", "m"))
+    move_begin_key = format_key_for_display(nav_shortcuts.get("move_to_beginning", "y"))
+    move_end_key = format_key_for_display(nav_shortcuts.get("move_to_end", "b"))
     quit_key = format_key_for_display(app_shortcuts.get("quit", "q"))
+    recent_menu_key = format_key_for_display(app_shortcuts.get("toggle_recent_menu", "r"))
+    voice_menu_key = format_key_for_display(app_shortcuts.get("toggle_voice_menu", "e"))
+    select_menu_key = format_key_for_display(app_shortcuts.get("select_menu_item", "\n"))
     auto_scroll_key = format_key_for_display(display_shortcuts.get("toggle_auto_scroll", "a"))
+    ui_cycle_key = format_key_for_display(display_shortcuts.get("cycle_ui_complexity", "v"))
     top_visible_key = format_key_for_display(nav_shortcuts.get("move_to_top_visible", "t"))
+    dec_speed_key = format_key_for_display(tts_shortcuts.get("decrease_speed", "s"))
+    inc_speed_key = format_key_for_display(tts_shortcuts.get("increase_speed", "d"))
+    dec_volume_key = format_key_for_display(tts_shortcuts.get("decrease_volume", "o"))
+    inc_volume_key = format_key_for_display(tts_shortcuts.get("increase_volume", "p"))
+    sent_highlight_key = format_key_for_display(tts_shortcuts.get("toggle_sentence_highlight", "x"))
+    word_highlight_key = format_key_for_display(tts_shortcuts.get("toggle_word_highlight", "w"))
     
     nav_text_1 = f"[{COLORS.CONTROL_KEYS}]{prev_para_key}{ICONS.SEPARATOR}{prev_sent_key}[/{COLORS.CONTROL_KEYS}]"
     nav_text_2 = f"[{COLORS.CONTROL_KEYS}]{next_sent_key}{ICONS.SEPARATOR}{next_para_key}[/{COLORS.CONTROL_KEYS}]"
     page_text = f"[{COLORS.CONTROL_KEYS}]{scroll_up_key}{ICONS.SEPARATOR}{scroll_down_key}[/{COLORS.CONTROL_KEYS}]"
     scroll_text = f"[{COLORS.CONTROL_KEYS}]{page_up_key}{ICONS.SEPARATOR}{page_down_key}[/{COLORS.CONTROL_KEYS}]"
+    jump_text = f"BEG/END [{COLORS.CONTROL_KEYS}]{move_begin_key}{ICONS.SEPARATOR}{move_end_key}[/{COLORS.CONTROL_KEYS}]"
+    speed_text = f"SPD [{COLORS.CONTROL_KEYS}]{dec_speed_key}{ICONS.SEPARATOR}{inc_speed_key}[/{COLORS.CONTROL_KEYS}]"
+    volume_text = f"VOL [{COLORS.CONTROL_KEYS}]{dec_volume_key}{ICONS.SEPARATOR}{inc_volume_key}[/{COLORS.CONTROL_KEYS}]"
+    highlight_text = f"HL [{COLORS.CONTROL_KEYS}]{sent_highlight_key}{ICONS.SEPARATOR}{word_highlight_key}[/{COLORS.CONTROL_KEYS}]"
+    ui_text = f"UI [{COLORS.CONTROL_KEYS}]{ui_cycle_key}[/{COLORS.CONTROL_KEYS}]"
+    recent_text = f"REC [{COLORS.CONTROL_KEYS}]{recent_menu_key}[/{COLORS.CONTROL_KEYS}]"
+    voice_text = f"VOC [{COLORS.CONTROL_KEYS}]{voice_menu_key}[/{COLORS.CONTROL_KEYS}]"
     quit_text = f"[{COLORS.CONTROL_KEYS}]{quit_key}[/{COLORS.CONTROL_KEYS}]"
     auto_text = f"[{COLORS.CONTROL_KEYS}]{auto_scroll_key}{ICONS.SEPARATOR}{top_visible_key}[/{COLORS.CONTROL_KEYS}]"
     # Removed ui_mode_text from here as we don't want to show it visually
@@ -470,9 +492,9 @@ def get_compact_subtitle(reader, width):
         base_sep = ICONS.LINE_SEPARATOR_LONG
         
         # Construct status part with proper spacing
-        pause_key = format_key_for_display(tts_shortcuts.get("play_pause", "p"))
-        if speed_indicator:
-            status_part = f"[{COLORS.CONTROL_KEYS}]{pause_key}[/{COLORS.CONTROL_KEYS}] {status_icon} {speed_indicator} {status_text}"
+        pause_key = format_key_for_display(tts_shortcuts.get("play_pause", " "))
+        if audio_indicator:
+            status_part = f"[{COLORS.CONTROL_KEYS}]{pause_key}[/{COLORS.CONTROL_KEYS}] {status_icon} {audio_indicator} {status_text}"
         else:
             status_part = f"[{COLORS.CONTROL_KEYS}]{pause_key}[/{COLORS.CONTROL_KEYS}] {status_icon} {status_text}"
             
@@ -488,7 +510,22 @@ def get_compact_subtitle(reader, width):
         ui_mode_display = ui_mode_names[config.UI_COMPLEXITY_MODE]
         
         # Modified controls_text to remove ui_mode_text visual display but keep functionality
-        controls_text = f"{nav_text_1} [{COLORS.CONTROL_ICONS}]{ICONS.HIGHLIGHT_UP}[/{COLORS.CONTROL_ICONS}] {nav_text_2} [{COLORS.CONTROL_ICONS}]{ICONS.HIGHLIGHT_DOWN}[/{COLORS.CONTROL_ICONS}] [{COLORS.SEPARATORS}]{base_sep}[/{COLORS.SEPARATORS}] {page_text} [{COLORS.ARROW_ICONS}]{ICONS.ROW_NAVIGATION}[/{COLORS.ARROW_ICONS}] {scroll_text} [{COLORS.ARROW_ICONS}]{ICONS.PAGE_NAVIGATION}[/{COLORS.ARROW_ICONS}] [{COLORS.SEPARATORS}]{base_sep}[/{COLORS.SEPARATORS}] {quit_text} [{COLORS.QUIT_ICON}]{ICONS.QUIT}[/{COLORS.QUIT_ICON}]"
+        controls_text = (
+            f"{nav_text_1} [{COLORS.CONTROL_ICONS}]{ICONS.HIGHLIGHT_UP}[/{COLORS.CONTROL_ICONS}] "
+            f"{nav_text_2} [{COLORS.CONTROL_ICONS}]{ICONS.HIGHLIGHT_DOWN}[/{COLORS.CONTROL_ICONS}] "
+            f"[{COLORS.SEPARATORS}]{base_sep}[/{COLORS.SEPARATORS}] "
+            f"{page_text} [{COLORS.ARROW_ICONS}]{ICONS.ROW_NAVIGATION}[/{COLORS.ARROW_ICONS}] "
+            f"{scroll_text} [{COLORS.ARROW_ICONS}]{ICONS.PAGE_NAVIGATION}[/{COLORS.ARROW_ICONS}] "
+            f"[{COLORS.SEPARATORS}]{base_sep}[/{COLORS.SEPARATORS}] "
+            f"{jump_text} [{COLORS.SEPARATORS}]{base_sep}[/{COLORS.SEPARATORS}] "
+            f"{speed_text} [{COLORS.SEPARATORS}]{base_sep}[/{COLORS.SEPARATORS}] "
+            f"{volume_text} [{COLORS.SEPARATORS}]{base_sep}[/{COLORS.SEPARATORS}] "
+            f"{highlight_text} [{COLORS.SEPARATORS}]{base_sep}[/{COLORS.SEPARATORS}] "
+            f"{ui_text} [{COLORS.SEPARATORS}]{base_sep}[/{COLORS.SEPARATORS}] "
+            f"{recent_text} [{COLORS.SEPARATORS}]{base_sep}[/{COLORS.SEPARATORS}] "
+            f"{voice_text} [{COLORS.SEPARATORS}]{base_sep}[/{COLORS.SEPARATORS}] "
+            f"{quit_text} [{COLORS.QUIT_ICON}]{ICONS.QUIT}[/{COLORS.QUIT_ICON}]"
+        )
         
         playing_color = COLORS.PLAYING_STATUS if not reader.is_paused else COLORS.PAUSED_STATUS
         auto_color = COLORS.AUTO_SCROLL_ENABLED if reader.auto_scroll_enabled else COLORS.AUTO_SCROLL_DISABLED
@@ -505,9 +542,9 @@ def get_compact_subtitle(reader, width):
         separator = ICONS.LINE_SEPARATOR_LONG
         
         # Construct status part with proper spacing
-        pause_key = format_key_for_display(tts_shortcuts.get("play_pause", "p"))
-        if speed_indicator:
-            icon_status = f"[{COLORS.CONTROL_KEYS}]{pause_key}[/{COLORS.CONTROL_KEYS}] {status_icon}{speed_indicator}"
+        pause_key = format_key_for_display(tts_shortcuts.get("play_pause", " "))
+        if audio_indicator:
+            icon_status = f"[{COLORS.CONTROL_KEYS}]{pause_key}[/{COLORS.CONTROL_KEYS}] {status_icon}{audio_indicator}"
         else:
             icon_status = f"[{COLORS.CONTROL_KEYS}]{pause_key}[/{COLORS.CONTROL_KEYS}] {status_icon}"
             
@@ -518,7 +555,23 @@ def get_compact_subtitle(reader, width):
         ui_mode_display = ui_mode_names[config.UI_COMPLEXITY_MODE]
         
         # Modified controls_text to remove ui_mode_text visual display but keep functionality
-        controls_text = f"[{COLORS.SEPARATORS}]{separator}[/{COLORS.SEPARATORS}] {nav_text_1} [{COLORS.CONTROL_ICONS}]{ICONS.HIGHLIGHT_UP}[/{COLORS.CONTROL_ICONS}] {nav_text_2} [{COLORS.CONTROL_ICONS}]{ICONS.HIGHLIGHT_DOWN}[/{COLORS.CONTROL_ICONS}] [{COLORS.SEPARATORS}]{separator}[/{COLORS.SEPARATORS}] {page_text} [{COLORS.ARROW_ICONS}]{ICONS.ROW_NAVIGATION}[/{COLORS.ARROW_ICONS}] {scroll_text} [{COLORS.ARROW_ICONS}]{ICONS.PAGE_NAVIGATION}[/{COLORS.ARROW_ICONS}] [{COLORS.SEPARATORS}]{separator}[/{COLORS.SEPARATORS}] {quit_text} [{COLORS.QUIT_ICON}]{ICONS.QUIT}[/{COLORS.QUIT_ICON}]"
+        controls_text = (
+            f"[{COLORS.SEPARATORS}]{separator}[/{COLORS.SEPARATORS}] "
+            f"{nav_text_1} [{COLORS.CONTROL_ICONS}]{ICONS.HIGHLIGHT_UP}[/{COLORS.CONTROL_ICONS}] "
+            f"{nav_text_2} [{COLORS.CONTROL_ICONS}]{ICONS.HIGHLIGHT_DOWN}[/{COLORS.CONTROL_ICONS}] "
+            f"[{COLORS.SEPARATORS}]{separator}[/{COLORS.SEPARATORS}] "
+            f"{page_text} [{COLORS.ARROW_ICONS}]{ICONS.ROW_NAVIGATION}[/{COLORS.ARROW_ICONS}] "
+            f"{scroll_text} [{COLORS.ARROW_ICONS}]{ICONS.PAGE_NAVIGATION}[/{COLORS.ARROW_ICONS}] "
+            f"[{COLORS.SEPARATORS}]{separator}[/{COLORS.SEPARATORS}] "
+            f"{jump_text} [{COLORS.SEPARATORS}]{separator}[/{COLORS.SEPARATORS}] "
+            f"{speed_text} [{COLORS.SEPARATORS}]{separator}[/{COLORS.SEPARATORS}] "
+            f"{volume_text} [{COLORS.SEPARATORS}]{separator}[/{COLORS.SEPARATORS}] "
+            f"{highlight_text} [{COLORS.SEPARATORS}]{separator}[/{COLORS.SEPARATORS}] "
+            f"{ui_text} [{COLORS.SEPARATORS}]{separator}[/{COLORS.SEPARATORS}] "
+            f"{recent_text} [{COLORS.SEPARATORS}]{separator}[/{COLORS.SEPARATORS}] "
+            f"{voice_text} [{COLORS.SEPARATORS}]{separator}[/{COLORS.SEPARATORS}] "
+            f"{quit_text} [{COLORS.QUIT_ICON}]{ICONS.QUIT}[/{COLORS.QUIT_ICON}]"
+        )
         
         playing_color = COLORS.PLAYING_STATUS if not reader.is_paused else COLORS.PAUSED_STATUS
         auto_color = COLORS.AUTO_SCROLL_ENABLED if reader.auto_scroll_enabled else COLORS.AUTO_SCROLL_DISABLED
@@ -528,9 +581,9 @@ def get_compact_subtitle(reader, width):
         separator = ICONS.LINE_SEPARATOR_MEDIUM
         
         # Construct status part with proper spacing
-        pause_key = format_key_for_display(tts_shortcuts.get("play_pause", "p"))
-        if speed_indicator:
-            icon_status = f"[{COLORS.CONTROL_KEYS}]{pause_key}[/{COLORS.CONTROL_KEYS}] {status_icon}{speed_indicator}"
+        pause_key = format_key_for_display(tts_shortcuts.get("play_pause", " "))
+        if audio_indicator:
+            icon_status = f"[{COLORS.CONTROL_KEYS}]{pause_key}[/{COLORS.CONTROL_KEYS}] {status_icon}{audio_indicator}"
         else:
             icon_status = f"[{COLORS.CONTROL_KEYS}]{pause_key}[/{COLORS.CONTROL_KEYS}] {status_icon}"
             
@@ -541,7 +594,23 @@ def get_compact_subtitle(reader, width):
         ui_mode_display = ui_mode_names[config.UI_COMPLEXITY_MODE]
         
         # Modified controls_text to remove ui_mode_text visual display but keep functionality
-        controls_text = f"[{COLORS.SEPARATORS}]{separator}[/{COLORS.SEPARATORS}] {nav_text_1} [{COLORS.CONTROL_ICONS}]{ICONS.HIGHLIGHT_UP}[/{COLORS.CONTROL_ICONS}] {nav_text_2} [{COLORS.CONTROL_ICONS}]{ICONS.HIGHLIGHT_DOWN}[/{COLORS.CONTROL_ICONS}] [{COLORS.SEPARATORS}]{separator}[/{COLORS.SEPARATORS}] {page_text} [{COLORS.ARROW_ICONS}]{ICONS.ROW_NAVIGATION}[/{COLORS.ARROW_ICONS}] {scroll_text} [{COLORS.ARROW_ICONS}]{ICONS.PAGE_NAVIGATION}[/{COLORS.ARROW_ICONS}] [{COLORS.SEPARATORS}]{separator}[/{COLORS.SEPARATORS}] {quit_text} [{COLORS.QUIT_ICON}]{ICONS.QUIT}[/{COLORS.QUIT_ICON}]"
+        controls_text = (
+            f"[{COLORS.SEPARATORS}]{separator}[/{COLORS.SEPARATORS}] "
+            f"{nav_text_1} [{COLORS.CONTROL_ICONS}]{ICONS.HIGHLIGHT_UP}[/{COLORS.CONTROL_ICONS}] "
+            f"{nav_text_2} [{COLORS.CONTROL_ICONS}]{ICONS.HIGHLIGHT_DOWN}[/{COLORS.CONTROL_ICONS}] "
+            f"[{COLORS.SEPARATORS}]{separator}[/{COLORS.SEPARATORS}] "
+            f"{page_text} [{COLORS.ARROW_ICONS}]{ICONS.ROW_NAVIGATION}[/{COLORS.ARROW_ICONS}] "
+            f"{scroll_text} [{COLORS.ARROW_ICONS}]{ICONS.PAGE_NAVIGATION}[/{COLORS.ARROW_ICONS}] "
+            f"[{COLORS.SEPARATORS}]{separator}[/{COLORS.SEPARATORS}] "
+            f"{jump_text} [{COLORS.SEPARATORS}]{separator}[/{COLORS.SEPARATORS}] "
+            f"{speed_text} [{COLORS.SEPARATORS}]{separator}[/{COLORS.SEPARATORS}] "
+            f"{volume_text} [{COLORS.SEPARATORS}]{separator}[/{COLORS.SEPARATORS}] "
+            f"{highlight_text} [{COLORS.SEPARATORS}]{separator}[/{COLORS.SEPARATORS}] "
+            f"{ui_text} [{COLORS.SEPARATORS}]{separator}[/{COLORS.SEPARATORS}] "
+            f"{recent_text} [{COLORS.SEPARATORS}]{separator}[/{COLORS.SEPARATORS}] "
+            f"{voice_text} [{COLORS.SEPARATORS}]{separator}[/{COLORS.SEPARATORS}] "
+            f"{quit_text} [{COLORS.QUIT_ICON}]{ICONS.QUIT}[/{COLORS.QUIT_ICON}]"
+        )
         
         playing_color = COLORS.PLAYING_STATUS if not reader.is_paused else COLORS.PAUSED_STATUS
         auto_color = COLORS.AUTO_SCROLL_ENABLED if reader.auto_scroll_enabled else COLORS.AUTO_SCROLL_DISABLED
@@ -551,9 +620,9 @@ def get_compact_subtitle(reader, width):
         separator = ICONS.LINE_SEPARATOR_SHORT
         
         # Construct status part with proper spacing
-        pause_key = format_key_for_display(tts_shortcuts.get("play_pause", "p"))
-        if speed_indicator:
-            icon_status = f"[{COLORS.CONTROL_KEYS}]{pause_key}[/{COLORS.CONTROL_KEYS}] {status_icon}{speed_indicator}"
+        pause_key = format_key_for_display(tts_shortcuts.get("play_pause", " "))
+        if audio_indicator:
+            icon_status = f"[{COLORS.CONTROL_KEYS}]{pause_key}[/{COLORS.CONTROL_KEYS}] {status_icon}{audio_indicator}"
         else:
             icon_status = f"[{COLORS.CONTROL_KEYS}]{pause_key}[/{COLORS.CONTROL_KEYS}] {status_icon}"
             
@@ -564,7 +633,23 @@ def get_compact_subtitle(reader, width):
         ui_mode_display = ui_mode_names[config.UI_COMPLEXITY_MODE]
         
         # Modified controls_text to remove ui_mode_text visual display but keep functionality
-        controls_text = f"[{COLORS.SEPARATORS}]{separator}[/{COLORS.SEPARATORS}] {nav_text_1} [{COLORS.CONTROL_ICONS}]{ICONS.HIGHLIGHT_UP}[/{COLORS.CONTROL_ICONS}] {nav_text_2} [{COLORS.CONTROL_ICONS}]{ICONS.HIGHLIGHT_DOWN}[/{COLORS.CONTROL_ICONS}] [{COLORS.SEPARATORS}]{separator}[/{COLORS.SEPARATORS}] {page_text} [{COLORS.ARROW_ICONS}]{ICONS.ROW_NAVIGATION}[/{COLORS.ARROW_ICONS}] {scroll_text} [{COLORS.ARROW_ICONS}]{ICONS.PAGE_NAVIGATION}[/{COLORS.ARROW_ICONS}] [{COLORS.SEPARATORS}]{separator}[/{COLORS.SEPARATORS}] {quit_text} [{COLORS.QUIT_ICON}]{ICONS.QUIT}[/{COLORS.QUIT_ICON}]"
+        controls_text = (
+            f"[{COLORS.SEPARATORS}]{separator}[/{COLORS.SEPARATORS}] "
+            f"{nav_text_1} [{COLORS.CONTROL_ICONS}]{ICONS.HIGHLIGHT_UP}[/{COLORS.CONTROL_ICONS}] "
+            f"{nav_text_2} [{COLORS.CONTROL_ICONS}]{ICONS.HIGHLIGHT_DOWN}[/{COLORS.CONTROL_ICONS}] "
+            f"[{COLORS.SEPARATORS}]{separator}[/{COLORS.SEPARATORS}] "
+            f"{page_text} [{COLORS.ARROW_ICONS}]{ICONS.ROW_NAVIGATION}[/{COLORS.ARROW_ICONS}] "
+            f"{scroll_text} [{COLORS.ARROW_ICONS}]{ICONS.PAGE_NAVIGATION}[/{COLORS.ARROW_ICONS}] "
+            f"[{COLORS.SEPARATORS}]{separator}[/{COLORS.SEPARATORS}] "
+            f"{jump_text} [{COLORS.SEPARATORS}]{separator}[/{COLORS.SEPARATORS}] "
+            f"{speed_text} [{COLORS.SEPARATORS}]{separator}[/{COLORS.SEPARATORS}] "
+            f"{volume_text} [{COLORS.SEPARATORS}]{separator}[/{COLORS.SEPARATORS}] "
+            f"{highlight_text} [{COLORS.SEPARATORS}]{separator}[/{COLORS.SEPARATORS}] "
+            f"{ui_text} [{COLORS.SEPARATORS}]{separator}[/{COLORS.SEPARATORS}] "
+            f"{recent_text} [{COLORS.SEPARATORS}]{separator}[/{COLORS.SEPARATORS}] "
+            f"{voice_text} [{COLORS.SEPARATORS}]{separator}[/{COLORS.SEPARATORS}] "
+            f"{quit_text} [{COLORS.QUIT_ICON}]{ICONS.QUIT}[/{COLORS.QUIT_ICON}]"
+        )
         
         playing_color = COLORS.PLAYING_STATUS if not reader.is_paused else COLORS.PAUSED_STATUS
         auto_color = COLORS.AUTO_SCROLL_ENABLED if reader.auto_scroll_enabled else COLORS.AUTO_SCROLL_DISABLED
@@ -619,6 +704,59 @@ def render_recent_books_overlay(reader, width, height):
     
     return panel, panel_width, panel_height
 
+def render_voice_menu_overlay(reader, width, height):
+    """Render the voice selection overlay."""
+    if not reader.voice_menu_list:
+        content = Text("No voices available.", justify="center", style=COLORS.TEXT_NORMAL)
+    else:
+        table = Table(box=None, show_header=False, padding=0, expand=True)
+        table.add_column("Selection", width=3)
+        table.add_column("Voice", ratio=1, no_wrap=True, overflow="ellipsis")
+        table.add_column("Current", width=7, justify="right")
+
+        visible_rows = max(1, min(len(reader.voice_menu_list), height - 6))
+        start_index = max(0, min(reader.voice_menu_scroll_offset, len(reader.voice_menu_list) - visible_rows))
+        end_index = min(len(reader.voice_menu_list), start_index + visible_rows)
+
+        current_voice = reader.tts_model.voice if reader.tts_model else None
+
+        for idx in range(start_index, end_index):
+            voice = reader.voice_menu_list[idx]
+            is_selected = idx == reader.voice_menu_selection_idx
+            is_current = voice == current_voice
+
+            if is_selected:
+                style = "reverse bold cyan"
+                prefix = ">"
+            else:
+                style = COLORS.TEXT_NORMAL
+                prefix = " "
+
+            current_label = "CURRENT" if is_current else ""
+
+            table.add_row(
+                prefix,
+                Text(voice, overflow="ellipsis", no_wrap=True),
+                current_label,
+                style=style
+            )
+        content = table
+
+    panel_width = min(70, width - 4)
+    panel_height = min(max(6, len(reader.voice_menu_list) + 4), height - 4)
+
+    panel = Panel(
+        content,
+        title="[bold blue]Voices[/bold blue]",
+        border_style="blue",
+        box=box.ROUNDED,
+        width=panel_width,
+        height=panel_height,
+        padding=(1, 1)
+    )
+
+    return panel, panel_width, panel_height
+
 async def display_ui(reader):
     """Display the UI."""
     if reader.render_lock.locked():
@@ -637,9 +775,10 @@ async def display_ui(reader):
                 width, height, reader.auto_scroll_enabled, reader.selection_active,
                 reader.selection_start, reader.selection_end,
                 # Add playback speed to trigger UI updates when speed changes
-                reader.playback_speed, config.UI_COMPLEXITY_MODE,
-                # Add recent menu state to trigger updates
-                reader.show_recent_menu, reader.recent_menu_selection_idx
+                reader.playback_speed, reader.playback_volume, config.UI_COMPLEXITY_MODE,
+                # Add recent/voice menu state to trigger updates
+                reader.show_recent_menu, reader.recent_menu_selection_idx,
+                reader.show_voice_menu, reader.voice_menu_selection_idx, reader.voice_menu_scroll_offset
             )
             
             if reader.last_rendered_state == current_state and reader.last_terminal_size == (width, height):
@@ -696,7 +835,12 @@ async def display_ui(reader):
                 empty_blocks = progress_bar_width - filled_blocks
                 progress_bar = ICONS.PROGRESS_FILLED * filled_blocks + ICONS.PROGRESS_EMPTY * empty_blocks
                 
-                percentage_text = f"{int(progress_percent)}% {progress_bar}"
+                speed_indicator = reader._get_speed_display() if hasattr(reader, '_get_speed_display') else ""
+                volume_indicator = reader._get_volume_display() if hasattr(reader, '_get_volume_display') else ""
+                indicator_parts = [part for part in (speed_indicator, volume_indicator) if part]
+                audio_indicator = " ".join(indicator_parts)
+                audio_text = f" {audio_indicator}" if audio_indicator else ""
+                percentage_text = f"{int(progress_percent)}% {progress_bar}{audio_text}"
                 
                 available_width = width - len(percentage_text) - 6
                 
@@ -749,7 +893,12 @@ async def display_ui(reader):
                 empty_blocks = progress_bar_width - filled_blocks
                 progress_bar = ICONS.PROGRESS_FILLED * filled_blocks + ICONS.PROGRESS_EMPTY * empty_blocks
                 
-                percentage_text = f"{int(progress_percent)}% {progress_bar}"
+                speed_indicator = reader._get_speed_display() if hasattr(reader, '_get_speed_display') else ""
+                volume_indicator = reader._get_volume_display() if hasattr(reader, '_get_volume_display') else ""
+                indicator_parts = [part for part in (speed_indicator, volume_indicator) if part]
+                audio_indicator = " ".join(indicator_parts)
+                audio_text = f" {audio_indicator}" if audio_indicator else ""
+                percentage_text = f"{int(progress_percent)}% {progress_bar}{audio_text}"
                 
                 available_width = width - len(percentage_text) - 6
                 
@@ -811,6 +960,25 @@ async def display_ui(reader):
                     # Move cursor to (start_y + i, start_x) - 1-based coordinates
                     overlay += f"\033[{start_y + i + 1};{start_x + 1}H{line}"
                 
+                full_output += overlay
+
+            if reader.show_voice_menu:
+                menu_panel, panel_width, panel_height = render_voice_menu_overlay(reader, width, height)
+                with temp_console.capture() as capture:
+                    temp_console.print(menu_panel, end='', overflow='crop')
+                menu_output = capture.get()
+
+                menu_lines = menu_output.split('\n')
+
+                start_y = (height - panel_height) // 2
+                start_x = (width - panel_width) // 2
+
+                overlay = ""
+                for i, line in enumerate(menu_lines):
+                    if i >= panel_height:
+                        break
+                    overlay += f"\033[{start_y + i + 1};{start_x + 1}H{line}"
+
                 full_output += overlay
 
             sys.stdout.write(full_output)
@@ -886,6 +1054,12 @@ def _extract_core_word(token: str) -> str:
 
 def format_key_for_display(key):
     """Convert control characters to caret notation for UI display."""
+    if key in ("\n", "\r"):
+        return "ENTER"
+    if key == "\t":
+        return "TAB"
+    if key == " ":
+        return "SPACE"
     if isinstance(key, str) and len(key) == 1:
         # Check if it's a control character (ASCII 0-31)
         char_code = ord(key)
